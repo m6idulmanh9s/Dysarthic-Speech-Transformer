@@ -1,0 +1,16 @@
+# PyTorch Checkpoints
+*.pt
+*.pth
+checkpoints/
+
+# Datasets and Features
+data/
+*.npy
+*.wav
+*.csv
+*.tar.bz2
+
+# Python Cache & Environments
+__pycache__/
+*.ipynb_checkpoints/
+venv/
