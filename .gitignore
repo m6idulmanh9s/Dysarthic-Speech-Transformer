@@ -13,4 +13,5 @@ ml/
 data/
 checkpoints/
 wandb/
-.DS_Store
+.DS_Store.
+vscode/
