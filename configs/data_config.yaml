@@ -1,0 +1,21 @@
+dataset:
+  target_corpus: "UA-Speech"
+  ljspeech_root: "data/LJSpeech-1.1"
+  uaspeech_root: "data/UA-Speech"
+  master_csv: "data/master_index_uaspeech.csv"
+  processed_dir: "data/processed"
+
+audio:
+  sample_rate: 16000
+  frame_length_ms: 200
+  stride_ms: 80
+  n_fft: 3200
+  hop_length: 1280
+  win_length: 3200
+  input_freq_bins: 1601
+
+augmentation:
+  enabled: true
+  pitch_shift_factor: 10
+  speed_change_factor: 10
+  noise_injection_scale: 0.005

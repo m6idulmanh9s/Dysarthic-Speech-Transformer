@@ -1,0 +1,19 @@
+training:
+  batch_size: 16
+  learning_rate: 3.0e-5
+  min_learning_rate: 1.0e-6
+  weight_decay: 1.0e-5
+  epochs: 50
+  accumulation_steps: 4
+  max_grad_norm: 0.5
+  mixed_precision: true
+  device: "cuda"
+
+wandb:
+  project: "dysarthric-speech-transformer"
+  entity: null
+  log_freq: 50
+
+checkpoint:
+  save_dir: "checkpoints"
+  save_best_only: true

@@ -1,0 +1,14 @@
+model:
+  name: "Transformer-2"
+  input_freq_bins: 1601
+  vocab_size: 42
+  d_model: 256
+  n_heads: 8
+  num_encoder_layers: 5
+  num_decoder_layers: 3
+  dropout: 0.1
+  frontend:
+    channels: 64
+    kernel_size: 11
+    stride: 2
+    padding: 5
