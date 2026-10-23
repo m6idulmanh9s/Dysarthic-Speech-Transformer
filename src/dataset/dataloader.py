@@ -79,7 +79,7 @@ def collate_fn(batch):
 def create_dataloader(
     csv_file: str,
     tokenizer: CharacterTokenizer,
-    batch_size: int = 16,
+    batch_size: int = 4,
     shuffle: bool = True,
     augment: bool = False,
     num_workers: int = 0,

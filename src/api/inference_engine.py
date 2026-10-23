@@ -1,5 +1,6 @@
 import time
 import torch
+import torch.nn as nn
 import torchaudio
 import torchaudio.transforms as T
 from src.models.transformer import DysarthricSpeechTransformer

@@ -14,9 +14,10 @@ class AudioAugmenter:
         self.sample_rate = sample_rate
         self.pitch_shift_steps = pitch_shift_steps
         self.noise_scale = noise_scale
+        self.pitch_shifter = T.PitchShift(self.sample_rate, n_steps=self.pitch_shift_steps)
 
     def apply_pitch_shift(self, waveform: torch.Tensor) -> torch.Tensor:
-        pitch_shifter = T.PitchShift(self.sample_rate, n_steps=self.pitch_shift_steps)
+        
         return pitch_shifter(waveform)
 
     def apply_noise_injection(self, waveform: torch.Tensor) -> torch.Tensor:

@@ -40,6 +40,11 @@ async def startup_event():
 
         # Note: Provide the actual path to your trained checkpoint here
         checkpoint_path = "checkpoints/best_dysarthric_model.pt"
+        if not checkpoint_path.exists():
+            # Fallback to any speaker checkpoint in directory
+            ckpt_files = list(Path("checkpoints").glob("best_dysarthric_model_*.pt"))
+            if ckpt_files:
+                checkpoint_path = ckpt_files[0]
         engine = SpeechInferenceEngine(model_path=checkpoint_path, config=config)
         logger.info("API Startup Complete.")
     except Exception as e:

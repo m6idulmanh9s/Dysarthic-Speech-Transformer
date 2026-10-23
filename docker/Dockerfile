@@ -9,15 +9,17 @@ RUN apt-get update && apt-get install -y \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install CPU-only PyTorch and torchaudio to drastically reduce image size for free-tier hosting
+# Copy requirements and install remaining Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+    # Install CPU-only PyTorch and torchaudio to drastically reduce image size for free-tier hosting
 RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir torch torchaudio \
     --index-url https://download.pytorch.org/whl/cpu \
     --extra-index-url https://pypi.org/simple
 
-# Copy requirements and install remaining Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
 
 # Copy configuration files and source code
 COPY configs/ configs/
