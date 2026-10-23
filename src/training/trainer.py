@@ -1,4 +1,5 @@
 import time
+import gc
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -93,6 +94,9 @@ class Seq2SeqTrainer:
         
         avg_loss = epoch_loss / len(self.train_loader)
         epoch_time = time.time() - start_time
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         logger.info(f"=== Epoch {epoch} Complete | Avg Train Loss: {avg_loss:.4f} | Time: {epoch_time:.2f}s ===")
         wandb.log({"Epoch Avg Train Loss": avg_loss, "Learning Rate": self.scheduler.get_last_lr()[0]})
         

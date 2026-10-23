@@ -82,7 +82,7 @@ def create_dataloader(
     batch_size: int = 16,
     shuffle: bool = True,
     augment: bool = False,
-    num_workers: int = 2,
+    num_workers: int = 0,
 ) -> DataLoader:
     dataset = DysarthricSpeechDataset(
         csv_file, tokenizer=tokenizer, augment=augment
@@ -93,5 +93,5 @@ def create_dataloader(
         shuffle=shuffle,
         collate_fn=collate_fn,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=False,
     )
