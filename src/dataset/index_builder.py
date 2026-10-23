@@ -36,6 +36,7 @@ def parse_ljspeech(lj_root: Path) -> list:
                     "dataset": "LJSpeech",
                     "is_dysarthric": False,
                     "block": "train",
+                    "severity": "control",
                 }
             )
     return records
@@ -47,38 +48,57 @@ def parse_uaspeech(ua_root: Path) -> list:
         logger.warning(f"UA-Speech root not found at {ua_root}")
         return records
 
-    # UA-Speech directory layout: audio / <speaker> / <block> / *.wav
-    for root, _, files in os.walk(ua_root):
-        for file in files:
-            if file.endswith(".wav"):
-                wav_path = Path(root) / file
-                parts = wav_path.parts
+    # Look for the metadata CSVs directly in the UA-Speech directory
+    metadata_files = {
+        "train": ua_root / "train_metadata.csv",
+        "test": ua_root / "test_metadata.csv",
+    }
 
-                speaker_id = "UNKNOWN"
-                block = "B1"
-                for part in parts:
-                    if part.startswith(("M", "F")) and len(part) in (3, 4):
-                        speaker_id = part
-                    if part in ("B1", "B2", "B3"):
-                        block = part
+    for split_name, csv_path in metadata_files.items():
+        if not csv_path.exists():
+            logger.warning(f"Metadata file not found at {csv_path}")
+            continue
 
-                # Transcript is derived from word ID embedded in filename (e.g. M04_B1_UW10_M4.wav)
-                filename_stem = wav_path.stem
-                raw_text = filename_stem.split("_")[2] if "_" in filename_stem else filename_stem
+        logger.info(f"Parsing {split_name} metadata: {csv_path}")
+        df = pd.read_csv(csv_path)
 
-                is_dys = not speaker_id.startswith("C")
+        for _, row in df.iterrows():
+            speaker = str(row["speaker"])
+            audio_filename = str(row["audio_file"])
 
-                records.append(
-                    {
-                        "audio_filepath": str(wav_path.resolve()),
-                        "transcript": raw_text,
-                        "clean_transcript": clean_transcript(raw_text),
-                        "speaker_id": speaker_id,
-                        "dataset": "UA-Speech",
-                        "is_dysarthric": is_dys,
-                        "block": block,
-                    }
-                )
+            # Resolve path whether audio_file is relative to ua_root or speaker folder
+            possible_paths = [
+                ua_root / audio_filename,
+                ua_root / speaker / audio_filename,
+                ua_root / speaker / split_name / audio_filename,
+            ]
+
+            wav_path = None
+            for p in possible_paths:
+                if p.exists():
+                    wav_path = p
+                    break
+
+            if wav_path is None:
+                continue
+
+            raw_text = str(row["text"])
+            severity = str(row.get("severity", "unknown")).lower()
+            is_dys = not speaker.startswith("C") and severity != "control"
+
+            records.append(
+                {
+                    "audio_filepath": str(wav_path.resolve()),
+                    "transcript": raw_text,
+                    "clean_transcript": clean_transcript(raw_text),
+                    "speaker_id": speaker,
+                    "dataset": "UA-Speech",
+                    "is_dysarthric": is_dys,
+                    "block": split_name,
+                    "severity": severity,
+                }
+            )
+
     return records
 
 
@@ -92,6 +112,7 @@ def build_master_index(config_path: str = "configs/data_config.yaml") -> None:
     all_records = ljspeech_records + uaspeech_records
     df_master = pd.DataFrame(all_records)
 
+    # Filter out empty clean transcripts
     df_master = df_master[df_master["clean_transcript"] != ""]
 
     out_csv = Path(cfg["master_csv"])
