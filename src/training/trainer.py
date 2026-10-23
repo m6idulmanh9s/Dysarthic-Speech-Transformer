@@ -56,6 +56,11 @@ class Seq2SeqTrainer:
         start_time = time.time()
         self.optimizer.zero_grad()
 
+        if batch_idx % self.config["wandb"]["log_freq"] == 0:
+            logger.info(f"Epoch {epoch} | Batch {batch_idx}/{len(self.train_loader)} | Loss: {loss.item() * self.accumulation_steps:.4f}")
+            if wandb.run is not None:
+                wandb.log({"Train Batch Loss": loss.item() * self.accumulation_steps})
+
         for batch_idx, (specs, tokens, spec_lens, token_lens) in enumerate(self.train_loader):
             specs = specs.to(self.device)
             tokens = tokens.to(self.device)
@@ -99,6 +104,8 @@ class Seq2SeqTrainer:
             torch.cuda.empty_cache()
         logger.info(f"=== Epoch {epoch} Complete | Avg Train Loss: {avg_loss:.4f} | Time: {epoch_time:.2f}s ===")
         wandb.log({"Epoch Avg Train Loss": avg_loss, "Learning Rate": self.scheduler.get_last_lr()[0]})
+        if wandb.run is not None:
+            wandb.log({"Epoch Avg Train Loss": avg_loss, "Learning Rate": self.scheduler.get_last_lr()[0]})
         
         return avg_loss
 
@@ -107,6 +114,9 @@ class Seq2SeqTrainer:
         val_loss = 0
         all_preds = []
         all_targets = []
+
+        if wandb.run is not None:
+            wandb.log({"Val Avg Loss": avg_loss, "Val WRA": wra})
 
         with torch.no_grad():
             for specs, tokens, _, _ in self.val_loader:
