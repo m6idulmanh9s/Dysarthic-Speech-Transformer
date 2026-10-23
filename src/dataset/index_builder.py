@@ -68,16 +68,12 @@ def parse_uaspeech(ua_root: Path) -> list:
 
             # Resolve path whether audio_file is relative to ua_root or speaker folder
             possible_paths = [
+                ua_root / speaker / Path(audio_filename).name,
+                ua_root / speaker / split_name / Path(audio_filename).name,
                 ua_root / audio_filename,
-                ua_root / speaker / audio_filename,
-                ua_root / speaker / split_name / audio_filename,
             ]
 
-            wav_path = None
-            for p in possible_paths:
-                if p.exists():
-                    wav_path = p
-                    break
+            wav_path = next((p for p in possible_paths if p.is_file()), None)
 
             if wav_path is None:
                 continue
