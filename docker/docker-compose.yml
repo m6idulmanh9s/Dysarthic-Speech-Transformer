@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dysarthric-asr-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: dysarthric_asr_container
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the local checkpoints directory to avoid baking large weight files directly into the image
+      - ../checkpoints:/app/checkpoints
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
