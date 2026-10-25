@@ -15,3 +15,6 @@ checkpoints/
 wandb/
 .DS_Store.
 vscode/
+UA-Speech/
+UA_Speech_local/
+download.ipynb
