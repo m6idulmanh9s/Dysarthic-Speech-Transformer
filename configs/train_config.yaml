@@ -1,17 +1,19 @@
 training:
-  batch_size: 2
+  batch_size: 8            # Increases GPU utilization; 16 batches fits easily in 4GB VRAM
   learning_rate: 3.0e-5
   min_learning_rate: 1.0e-6
   weight_decay: 1.0e-5
   epochs: 50
-  accumulation_steps: 16
+  accumulation_steps: 4     # Effective batch size = 32 (16 * 2)
   max_grad_norm: 0.5
   mixed_precision: true
   device: "cuda"
 
+augmentation:
+  enabled: true          # DISABLED for Phase 1 pre-training
+
 wandb:
   project: "dysarthric-speech-transformer"
-  entity: null
   log_freq: 50
 
 checkpoint:

@@ -1,11 +1,19 @@
-import yaml
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.schemas import HealthResponse, TranscriptionResponse
-from src.api.inference_engine import SpeechInferenceEngine
+
+from src.api.inference_engine import InferenceEngine
 from src.utils.logger import get_logger
 
 logger = get_logger("API")
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+CHECKPOINT_DIR = BASE_DIR / "checkpoints"
+MODEL_CONFIG = BASE_DIR / "configs" / "model_config.yaml"
+DATA_CONFIG = BASE_DIR / "configs" / "data_config.yaml"
+TEMP_DIR = BASE_DIR / "data" / "tmp"
 
 app = FastAPI(
     title="Dysarthric Speech Recognition API",
@@ -13,7 +21,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow CORS for web-based frontends
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,64 +29,123 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global inference engine instance
 engine = None
 
 
-@app.on_event("startup")
-async def startup_event():
-    global engine
-    try:
-        with open("configs/model_config.yaml", "r") as f:
-            config = yaml.safe_load(f)
-            
-        # Add audio configs directly for the engine
-        with open("configs/data_config.yaml", "r") as f:
-            data_config = yaml.safe_load(f)
-            config["audio"] = data_config["audio"]
+def resolve_checkpoint() -> Path:
+    preferred_checkpoints = [
+        CHECKPOINT_DIR / "best_dysarthric_model_F02.pt",
+        CHECKPOINT_DIR / "best_dysarthric_model.pt",
+        CHECKPOINT_DIR / "phase1_base_model.pt",
+    ]
 
-        # Note: Provide the actual path to your trained checkpoint here
-        checkpoint_path = "checkpoints/best_dysarthric_model.pt"
-        if not checkpoint_path.exists():
-            # Fallback to any speaker checkpoint in directory
-            ckpt_files = list(Path("checkpoints").glob("best_dysarthric_model_*.pt"))
-            if ckpt_files:
-                checkpoint_path = ckpt_files[0]
-        engine = SpeechInferenceEngine(model_path=checkpoint_path, config=config)
-        logger.info("API Startup Complete.")
-    except Exception as e:
-        logger.error(f"Failed to initialize Inference Engine during startup: {e}")
+    for checkpoint in preferred_checkpoints:
+        if checkpoint.is_file():
+            return checkpoint
 
+    available_checkpoints = sorted(CHECKPOINT_DIR.glob("*.pt"))
 
-@app.get("/health", response_model=HealthResponse)
-async def health_check():
-    if engine is None:
-        raise HTTPException(status_code=503, detail="Inference engine not initialized.")
-        
-    return HealthResponse(
-        status="active",
-        model_loaded=engine.is_loaded,
-        device=str(engine.device)
+    if available_checkpoints:
+        return available_checkpoints[0]
+
+    raise FileNotFoundError(
+        f"No checkpoint files found in {CHECKPOINT_DIR}"
     )
 
 
-@app.post("/transcribe", response_model=TranscriptionResponse)
-async def transcribe_audio(file: UploadFile = File(...)):
-    if not engine.is_loaded:
-        raise HTTPException(status_code=503, detail="Model weights are not loaded.")
-        
-    if not file.filename.endswith((".wav", ".flac")):
-        raise HTTPException(status_code=400, detail="Only .wav or .flac files are supported.")
-        
+@app.on_event("startup")
+def startup_event():
+    global engine
+
     try:
-        audio_bytes = await file.read()
-        result = engine.transcribe(audio_bytes)
-        
-        return TranscriptionResponse(
-            transcription=result["transcription"],
-            processing_time_sec=result["processing_time_sec"],
-            message="Success"
+        checkpoint_path = resolve_checkpoint()
+
+        logger.info(
+            "Initializing inference engine with checkpoint: %s",
+            checkpoint_path,
         )
-    except Exception as e:
-        logger.error(f"Transcription failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+
+        engine = InferenceEngine(
+            checkpoint_path=checkpoint_path,
+            model_config_path=MODEL_CONFIG,
+            data_config_path=DATA_CONFIG,
+        )
+
+        logger.info(
+            "Inference engine initialized successfully on %s",
+            engine.device,
+        )
+
+    except Exception:
+        engine = None
+        logger.exception("Failed to initialize inference engine")
+
+
+@app.get("/health")
+def health_check():
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Inference engine is not initialized.",
+        )
+
+    return {
+        "status": "healthy",
+        "model_loaded": True,
+        "device": str(engine.device),
+        "checkpoint": str(engine.checkpoint_path),
+    }
+
+
+@app.post("/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Inference engine is not ready.",
+        )
+
+    filename = file.filename or ""
+
+    if Path(filename).suffix.lower() not in {".wav", ".flac"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Only WAV and FLAC audio files are supported.",
+        )
+
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    temp_file_path = TEMP_DIR / f"{uuid4().hex}{Path(filename).suffix.lower()}"
+
+    try:
+        contents = await file.read()
+
+        if not contents:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded audio file is empty.",
+            )
+
+        temp_file_path.write_bytes(contents)
+
+        result = engine.transcribe(temp_file_path)
+
+        return {
+            "filename": Path(filename).name,
+            "transcription": result["transcription"],
+            "processing_time_sec": result["processing_time_sec"],
+            "message": "Success",
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        logger.exception("Transcription failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Transcription failed. Check server logs for details.",
+        )
+
+    finally:
+        temp_file_path.unlink(missing_ok=True)
+        await file.close()

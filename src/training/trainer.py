@@ -6,7 +6,7 @@ import torch.optim as optim
 import wandb
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
-from src.training.evaluator import evaluate_batch, compute_wra
+from src.training.evaluator import evaluate_batch, compute_wra, compute_cer
 from src.utils.logger import get_logger
 from src.utils.tokenizer import CharacterTokenizer
 
@@ -47,7 +47,9 @@ class Seq2SeqTrainer:
         self.max_grad_norm = config["training"]["max_grad_norm"]
 
     def generate_square_subsequent_mask(self, sz: int) -> torch.Tensor:
-        return nn.Transformer.generate_square_subsequent_mask(sz, device=self.device)
+       return nn.Transformer.generate_square_subsequent_mask(
+            sz, device=self.device, dtype=torch.bool
+        )
 
     def create_padding_mask(self, lengths: torch.Tensor, max_len: int) -> torch.Tensor:
         """Returns True for padded positions."""
@@ -123,7 +125,7 @@ class Seq2SeqTrainer:
             
         return avg_loss
 
-    def validate(self) -> float:
+    def validate(self) -> tuple[float, float, float]:
         self.model.eval()
         val_loss = 0.0
         all_preds = []
@@ -162,9 +164,15 @@ class Seq2SeqTrainer:
         num_val_batches = max(len(self.val_loader), 1)
         avg_loss = val_loss / num_val_batches
         wra = compute_wra(all_preds, all_targets)
+        cer = compute_cer(all_preds, all_targets)
         
-        logger.info(f"Validation | Avg Loss: {avg_loss:.4f} | WRA: {wra:.2f}%")
+        # Log 2 live sample transcriptions to terminal for inspection
+        if all_preds:
+            logger.info(f"--- Sample Prediction: '{all_preds[0]}'")
+            logger.info(f"--- Sample Target:       '{all_targets[0]}'")
+
+        logger.info(f"Validation | Avg Loss: {avg_loss:.4f} | CER: {cer:.2f}% | Exact WRA: {wra:.2f}%")
         if wandb.run is not None:
-            wandb.log({"Val Avg Loss": avg_loss, "Val WRA": wra})
+            wandb.log({"Val Avg Loss": avg_loss, "Val CER": cer, "Val Exact WRA": wra})
         
-        return wra
+        return avg_loss, wra, cer
