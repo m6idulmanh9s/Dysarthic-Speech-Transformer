@@ -119,16 +119,17 @@ def main():
     
     # Train Loop
     epochs = config["training"]["epochs"]
-    best_wra = 0.0
+    best_val_loss = float("inf")
     
     for epoch in range(1, epochs + 1):
         trainer.train_epoch(epoch)
-        wra = trainer.validate()
+        val_loss, wra, cer = trainer.validate()
         
-        if wra >= best_wra:
-            best_wra = wra
+        # Save model whenever validation loss improves
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             torch.save(model.state_dict(), checkpoint_out)
-            logger.info(f"New best model saved to {checkpoint_out} (WRA: {best_wra:.2f}%)")
+            logger.info(f"--> Saved best model checkpoint to {checkpoint_out} (Val Loss: {best_val_loss:.4f} | CER: {cer:.2f}%)")
     wandb.finish()
 
 if __name__ == "__main__":
